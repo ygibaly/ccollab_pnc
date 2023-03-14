@@ -52,7 +52,7 @@ if ($ENV{GK_MODELROOT} ) {
   $ENV{CLUSTER_NAME} = $ENV{GK_CLUSTER};
 }
 #do "$Bin/code_collab.cfg";
-my $cfg_file =  "$Bin/$ENV{STEPPING}.$ENV{CLUSTER_NAME}.$ENV{branch_is}.cfg";
+my $cfg_file =  "$Bin/$ENV{STEPPING}.$ENV{CLUSTER_NAME}.cfg";
 if ($ENV{CCOLLAB_CFG_FILE}) {
   $cfg_file = $ENV{CCOLLAB_CFG_FILE};
 }
@@ -883,7 +883,7 @@ for (keys %{$cfg{files}}) {
   my $title = `$GIT_EXE log --format=%B HEAD^..HEAD | head -1`;
   chomp $title;
   $title.= " [$ENV{STEPPING} $ENV{CLUSTER_NAME} $ENV{branch_is}]";
-  my $cmd = "$CCOLLAB_EXE admin review create --title '$title' --template '$TemplateName' --group $GroupID --custom-field 'Overview=$ENV{MODEL_ROOT}'"; 
+  my $cmd = "setenv DISPLAY 0 ; $CCOLLAB_EXE admin review create --title '$title' --template '$TemplateName' --group $GroupID --custom-field 'Overview=$ENV{MODEL_ROOT}'"; 
  # print("$cmd\n");
   my @output = `$cmd`;
   my $id = 0;
@@ -899,6 +899,8 @@ for (keys %{$cfg{files}}) {
     exit(1);
   }
   $cmd = "$CCOLLAB_EXE addgitdiffs last $from...$to";
+  system($cmd);
+  $cmd = "$CCOLLAB_EXE admin review finish last";
   system($cmd);
   #reviers and observers
   my %used;
@@ -921,12 +923,10 @@ for (keys %{$cfg{files}}) {
    $cmd = "$CCOLLAB_EXE admin review participant assign last $rev observer";
     system($cmd);
   }
-   $cmd = "$CCOLLAB_EXE admin review participant assign last cradmin reviewer";
-    system($cmd);
-  $cmd = "$CCOLLAB_EXE admin review finish last";
-  system($cmd);
-  $cmd = "$CCOLLAB_EXE admin review finish last";
-  system($cmd);
+  # $cmd = "$CCOLLAB_EXE admin review participant assign last cradmin reviewer";
+  #  system($cmd);
+  #$cmd = "$CCOLLAB_EXE admin review finish last";
+  #system($cmd);
   $cmd = "$CCOLLAB_EXE admin review participant remove last $ME";
   system($cmd);
   update_git_message($id);

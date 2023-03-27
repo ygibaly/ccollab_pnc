@@ -154,7 +154,7 @@ sub DoCommandlineOptions
                 "help|h",       "debug|d",    "git_hook",      "xmlfile=s",     "totsha=s", "turninsha=s", "fsck!",
                 "ownersFile=s", "printReviewers=s", "revert",        "indicators", "status=s",
                 "deletexml!",   "reassign=i",       "globalconfig!", "review=s",
-                "user=s",       "info=s",           "nongating",     "title=s" , "check_files=s" , "create"
+                "user=s",       "info=s",           "nongating",     "title=s" , "check_files=s" , "create", "reviewers=s",
                ) || die $main::Usage;
 
     if ($main::opt_help)
@@ -192,11 +192,11 @@ sub get_shas {
 sub update_git_message
 {
 	my ($code_review_number) = @_;
-	my ($git_message_cmd) = "$GIT_EXE log -1 --pretty=%B";
+	my ($git_message_cmd) = "cd $ENV{MODEL_ROOT} ; $GIT_EXE log -1 --pretty=%B";
 	my ($git_message) = 	`$git_message_cmd`;
 	chomp($git_message);
 	my ($git_new_message) = "Code review#$code_review_number $git_message";
-	my ($git_amend_cmd)  = "$GIT_EXE commit --amend -m \"$git_new_message\"";
+	my ($git_amend_cmd)  = "cd $ENV{MODEL_ROOT} ; $GIT_EXE commit --amend -m \"$git_new_message\"";
 	my ($gitreturn) = `$git_amend_cmd`;
 }
 
@@ -787,9 +787,24 @@ sub getReviewID {
 
 sub createCodeReview {
 
-
-
 }
+
+
+sub addgitdiffs {
+  my $reviewId = shift;
+  my $temp_area = `mktemp -d /tmp/ccollab.XXXX`;
+  chomp $temp_area;
+    system("$GIT_EXE clone -b $ENV{branch_is} $ENV{BAK_MASTER_REPO} $temp_area");
+    my $cmd = "cd $temp_area;$GIT_EXE pull $ENV{MODEL_ROOT}; $CCOLLAB_EXE addgitdiffs $reviewId HEAD^ HEAD";
+    system($cmd);
+
+    my @files_cahanged;
+    my $cmd = "cd $temp_area;$GIT_EXE diff --names-only HEAD^ HEAD";
+    @files_cahanged = `$cmd`;
+    chomp @files_cahanged;
+    return @files_cahanged;
+}
+
 
 
 #############################################################################
@@ -861,9 +876,11 @@ if ($reviewId) {
   else {
     #need to update
     print("you already have a code review open - $reviewId - but it is not updated to the last commit - updating\n");
-    my $cmd = "$CCOLLAB_EXE addgitdiffs $reviewId $from...$to";
+    addgitdiffs($reviewId);
+    update_git_message($reviewId);
+  #  my $cmd = "$CCOLLAB_EXE addgitdiffs $reviewId $from...$to";
  #   print("$cmd\n");
-    system($cmd);
+   # system($cmd);
     print("Code review $reviewId updated\nLink: https://fm-codecollab.intel.com/ui#review:id=$reviewId\n");
     exit(0);    
     }
@@ -873,17 +890,13 @@ else {
 #need to create code review
   #
   #
-my @files_changed = `$GIT_EXE diff --name-only $from $to`;
-chomp(@files_changed);
-my %cfg = getReviewers(@files_changed);
-for (keys %{$cfg{files}}) {
-  print "$_ => @{$cfg{files}{$_}}\n";
-
-}
+#my @files_changed = `$GIT_EXE diff --name-only $from $to`;
+#chomp(@files_changed);
   my $title = `$GIT_EXE log --format=%B HEAD^..HEAD | head -1`;
   chomp $title;
   $title.= " [$ENV{STEPPING} $ENV{CLUSTER_NAME} $ENV{branch_is}]";
-  my $cmd = "setenv DISPLAY 0 ; $CCOLLAB_EXE admin review create --title '$title' --template '$TemplateName' --group $GroupID --custom-field 'Overview=$ENV{MODEL_ROOT}'"; 
+  $ENV{DISPLAY} = 0;
+  my $cmd = "$CCOLLAB_EXE admin review create --title '$title' --template '$TemplateName' --group $GroupID --custom-field 'Overview=$ENV{MODEL_ROOT}'"; 
  # print("$cmd\n");
   my @output = `$cmd`;
   my $id = 0;
@@ -898,8 +911,16 @@ for (keys %{$cfg{files}}) {
     print("failed to create code review\n");
     exit(1);
   }
-  $cmd = "$CCOLLAB_EXE addgitdiffs last $from...$to";
-  system($cmd);
+  chomp $id;
+  my @files_changed = addgitdiffs($id);
+  my %cfg = getReviewers(@files_changed);
+  if ($main::opt_reviewers) {
+    @{$cfg{reviewers}} = split(",",$main::opt_reviewers);
+  };
+  for (keys %{$cfg{files}}) {
+    print "$_ => @{$cfg{files}{$_}}\n";
+  
+  }
   $cmd = "$CCOLLAB_EXE admin review finish last";
   system($cmd);
   #reviers and observers

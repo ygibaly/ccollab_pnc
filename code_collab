@@ -733,8 +733,8 @@ sub getReviewers {
         @{$res{observers}} = uniq@{$res{observers}};
         if ($main::opt_check_files) {
           print "$file matching $regex - found in file $src\n";
-          print "reviewers: " . join(" ",@{$res{reviewers}})."\n";
-          print "observers: " . join(" ",@{$res{observers}})."\n";
+          print "reviewers: " . join(" ",@{$cfg->{reviewers}})."\n";
+          print "observers: " . join(" ",@{$cfg->{observers}})."\n";
           print "must complete: $cfg->{complete}\n";
         }
 
@@ -799,7 +799,7 @@ sub addgitdiffs {
     system($cmd);
 
     my @files_cahanged;
-    my $cmd = "cd $temp_area;$GIT_EXE diff --names-only HEAD^ HEAD";
+    $cmd = "cd $temp_area;$GIT_EXE diff --names-only HEAD^ HEAD";
     @files_cahanged = `$cmd`;
     chomp @files_cahanged;
     return @files_cahanged;
@@ -815,6 +815,7 @@ sub addgitdiffs {
 &DoCommandlineOptions;
 
 
+&CCollabLogin();
 #TODO: maybe improve this
 if ($main::opt_status) {
   print "getting status of $main::opt_status\n";
@@ -845,7 +846,6 @@ if ($main::opt_check_files) {
 }
 
 
-&CCollabLogin();
 #TODO reviewrs from config
 #git hook actually check status
 if ($ENV{GK_STAGE} && $ENV{GK_STAGE} eq "code_review") {
@@ -864,7 +864,11 @@ my  ($from,$to) =  get_shas();
 #print "$from  $to\n";
 
 my ($reviewId,$is_updated) = getReviewID($from,$to); 
+
 if ($reviewId) {
+  my $x = GetReviewData($reviewId);
+  my $status = $x->{general}->{phase}->{content};
+  
 #already have review - is it updated?
   if ($is_updated) {
     #it is updated
@@ -873,7 +877,7 @@ if ($reviewId) {
     print("nothing to do, exiting\n");
     exit(0);
   }
-  else {
+  elsif ($status !~ /Completed/) {
     #need to update
     print("you already have a code review open - $reviewId - but it is not updated to the last commit - updating\n");
     addgitdiffs($reviewId);
@@ -886,7 +890,6 @@ if ($reviewId) {
     }
     
 }
-else {
 #need to create code review
   #
   #
@@ -954,7 +957,6 @@ else {
   print("code review $id created\nLink: https://fm-codecollab.intel.com/ui#review:id=$id\n");
   exit(0);
 
-}
 }
 
 

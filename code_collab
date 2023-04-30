@@ -143,6 +143,7 @@ my (%AllUIDs, %AllReviewers, %UnknownEmailAddresses);
 #############################################################################
 sub DoCommandlineOptions
 {
+  $main::opt_update = 0;
     $main::opt_help   = 0;
   $main::opt_create = 0;
     #$main::opt_globalconfig    = 1;
@@ -153,7 +154,7 @@ sub DoCommandlineOptions
     &GetOptions(
                 "help|h",       "debug|d",    "git_hook",      "xmlfile=s",     "totsha=s", "turninsha=s", "fsck!",
                 "ownersFile=s", "printReviewers=s", "revert",        "indicators", "status=s",
-                "deletexml!",   "reassign=i",       "globalconfig!", "review=s",
+                "deletexml!",   "reassign=i",       "globalconfig!", "review=s", "update",
                 "user=s",       "info=s",           "nongating",     "title=s" , "check_files=s" , "create", "reviewers=s",
                ) || die $main::Usage;
 
@@ -799,7 +800,7 @@ sub addgitdiffs {
     system($cmd);
 
     my @files_cahanged;
-    $cmd = "cd $temp_area;$GIT_EXE diff --names-only HEAD^ HEAD";
+    $cmd = "cd $temp_area;$GIT_EXE diff --name-only HEAD^ HEAD";
     @files_cahanged = `$cmd`;
     chomp @files_cahanged;
     return @files_cahanged;
@@ -864,6 +865,9 @@ my  ($from,$to) =  get_shas();
 #print "$from  $to\n";
 
 my ($reviewId,$is_updated) = getReviewID($from,$to); 
+if ($main::opt_update) {
+  $is_updated = 0;
+}
 
 if ($reviewId) {
   my $x = GetReviewData($reviewId);
@@ -879,9 +883,24 @@ if ($reviewId) {
   }
   elsif ($status !~ /Completed/) {
     #need to update
+    my $cmd;
     print("you already have a code review open - $reviewId - but it is not updated to the last commit - updating\n");
-    addgitdiffs($reviewId);
+    my @files_changed = addgitdiffs($reviewId);
     update_git_message($reviewId);
+    my %cfg = getReviewers(@files_changed);
+  my %used;
+  for my $rev (@{$cfg{reviewers}}) {
+    next if ($used{$rev});
+    $used{$rev}=1;
+   $cmd = "$CCOLLAB_EXE admin review participant assign last $rev reviewer";
+    system($cmd);
+  }
+  for my $rev (@{$cfg{observers}}) {
+    next if ($used{$rev});
+    $used{$rev}=1;
+    $cmd = "$CCOLLAB_EXE admin review participant assign last $rev observer";
+    system($cmd);
+  }
   #  my $cmd = "$CCOLLAB_EXE addgitdiffs $reviewId $from...$to";
  #   print("$cmd\n");
    # system($cmd);
@@ -944,7 +963,7 @@ if ($reviewId) {
   for my $rev (@{$cfg{observers}}) {
     next if ($used{$rev});
     $used{$rev}=1;
-   $cmd = "$CCOLLAB_EXE admin review participant assign last $rev observer";
+    $cmd = "$CCOLLAB_EXE admin review participant assign last $rev observer";
     system($cmd);
   }
   # $cmd = "$CCOLLAB_EXE admin review participant assign last cradmin reviewer";
@@ -961,5 +980,4 @@ if ($reviewId) {
 
 
 exit(0);
-
 

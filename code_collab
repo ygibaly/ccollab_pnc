@@ -565,14 +565,14 @@ sub CCollabLogin
     # Password can be the last argument, but paranoia makes me pipe the
     # password to the login command.  Any user doing a 'ps -elf' would
     # be able to see the password if it is put on the commandline.
-    my ($cmd) = "$CCOLLAB_EXE login $CCOLLAB_URL $ME >& /dev/null";
+    my ($cmd) = "$CCOLLAB_EXE login $CCOLLAB_URL $ME $PW>& /dev/null";
 
     #print $cmd, "\n";
     if (defined($PW))
     {
         open(LOGIN, "|$cmd") || die $!;
         sleep(1);
-        print LOGIN $PW, "\n";
+        print LOGIN "A", "\n";
         close(LOGIN);
     } ## end if (defined($PW))
     else

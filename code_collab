@@ -146,6 +146,7 @@ sub DoCommandlineOptions
   $main::opt_update = 0;
     $main::opt_help   = 0;
   $main::opt_create = 0;
+  $main::opt_close = 0;
     #$main::opt_globalconfig    = 1;
     $main::opt_fsck       = 1;
    # $main::opt_indicators = 0;
@@ -154,7 +155,7 @@ sub DoCommandlineOptions
     &GetOptions(
                 "help|h",       "debug|d",    "git_hook",      "xmlfile=s",     "totsha=s", "turninsha=s", "fsck!",
                 "ownersFile=s", "printReviewers=s", "revert",        "indicators", "status=s",
-                "deletexml!",   "reassign=i",       "globalconfig!", "review=s", "update",
+                "deletexml!",   "reassign=i",       "globalconfig!", "review=s", "update", "close",
                 "user=s",       "info=s",           "nongating",     "title=s" , "check_files=s" , "create", "reviewers=s",
                ) || die $main::Usage;
 
@@ -806,7 +807,111 @@ sub addgitdiffs {
     return @files_cahanged;
 }
 
+sub checkReview {
+  my $id = shift;
+  my $x = GetReviewData($id);
+  my $creationDate = $x->{general}->{creationDate};
+  my $creationTime = str2time($creationDate);
+  my $now = `date +%s`;
+  chomp $now;
+  my $passed_hours = ($now  - $creationTime )/60/60;
+  print "$creationDate $creationTime $passed_hours\n";
+  return unless ($x->{participants});
+  return unless ($x->{participants}->{participant});
+  my %userHash = %{$x->{participants}->{participant}};
+  return unless ($x->{artifacts});
+  return unless ($x->{artifacts}->{artifact});
+  my @reviewers;
+  my $found = 0;
+  my $closed = 0;
+  for (keys %userHash) {
+    next if($userHash{email});
+    print "$_ $userHash{$_}{role} $userHash{$_}{state} $userHash{$_}{login}\n";
+    if ($userHash{$_}{role}  =~ /review/i) {
+      $found = 1;
+      if ($userHash{$_}{state} =~ /Finished/) {
+        push (@reviewers,$userHash{$_}{login});
+        $closed++;
+      }
 
+    }
+  }
+  if (!$found) {
+    print "no reviwers\n";
+    return;
+  }
+  if (!$closed) {
+    print "nothing closed\n";
+    return;
+  }
+
+
+  my @files;
+  my @f;
+  if( ref  $x->{artifacts}->{artifact} eq "HASH" ){
+    @files =  ($x->{artifacts}->{artifact});
+  }
+  else {
+    @files = @{$x->{artifacts}->{artifact}};
+  }
+  for (@files) {
+    print "$_->{path}\n";
+    push(@f,$_->{path});
+  }
+  print "POSSIBLE CLOSE $id\n";
+  for (@f) {
+    my $ok = 0;
+    my %cfg = getReviewers(@f);
+    return unless ($cfg{reviewers});
+    my @tmp = @{$cfg{reviewers}};
+    for my $r (@reviewers) {
+      for my $t (@tmp) {
+        if ($r eq $t) {
+          $ok =1;
+        }
+      }
+    }
+    return unless($ok);
+  }
+
+  print "NEED TO CLOSE $id\n";
+
+  for (keys %userHash) {
+    next if($userHash{email});
+    if ($userHash{$_}{role}  =~ /review/i) {
+      if ($userHash{$_}{state} !~ /Finished/) {
+        my $cmd = "$CCOLLAB_EXE admin review participant assign $id $userHash{$_}{login} observer";
+        system($cmd);
+      }
+
+    }
+  }
+
+  
+}
+
+
+
+sub closeReviews {
+
+my $url='go?reportTitle=Reviews+Currently+In+Progress&data-format=csv&reviewAuthorUserNameVis=y&reviewIdVis=y&groupDepth=0&reviewTitleVis=y&component=ErrorsAndMessages&review_idleVis=y&ErrorsAndMessages_fingerPrint=861101&reviewTitleFilter=target%3Dpnc%7C%7C%7Ctype%3Dcontains&phaseVis=y&numDefectsVis=y&formSubmittedreportConfig=1&page=ReportReviewList&sort0=order%3Ddesc%7C%7C%7Ccol%3DreviewId&sort1=col%3D%7C%7C%7Corder%3Dasc&phaseFilter=inprogress&reviewCreationDateVis=y';
+    my $cmd = "$CCOLLAB_EXE admin wget '$url'";
+    print "$cmd\n" if ($main::opt_debug);
+    my (@data) = `$cmd`;
+    chomp @data;
+    for (@data) {
+      print "$_\n";
+      next if ($_ =~ /-ucode/);
+      next if ($_ =~ /Gibaly/);
+      my $id = $_;
+      $id =~ s/,.*//;
+      if ($id =~ /[0-9]+/) {
+      checkReview($id);
+      }
+    }
+
+
+}
 
 #############################################################################
 # Main
@@ -817,6 +922,13 @@ sub addgitdiffs {
 
 
 &CCollabLogin();
+
+
+if ($main::opt_close) {
+#  checkReview("314081");
+  closeReviews();
+  exit(0);
+}
 #TODO: maybe improve this
 if ($main::opt_status) {
   print "getting status of $main::opt_status\n";
@@ -886,9 +998,16 @@ if ($reviewId) {
     my $cmd;
     print("you already have a code review open - $reviewId - but it is not updated to the last commit - updating\n");
     my @files_changed = addgitdiffs($reviewId);
+  $cmd = "$CCOLLAB_EXE admin review finish last";
+  system($cmd);
     update_git_message($reviewId);
     my %cfg = getReviewers(@files_changed);
   my %used;
+  my $user = $ENV{USER};
+  if ($ENV{GK_USER}) {
+    $user = $ENV{GK_USER};
+  }
+  $used{$user} = 1;
   for my $rev (@{$cfg{reviewers}}) {
     next if ($used{$rev});
     $used{$rev}=1;

@@ -763,7 +763,7 @@ sub getReviewID {
   my @commit_msg = `$GIT_EXE  log --format=%B $from..$to`;
   for (@commit_msg) {
     if ($_ =~ /Code review#(\d+)/) {
-      $reviewId = $1;
+      $reviewId ||= $1;
     }
   }
 
@@ -797,6 +797,15 @@ sub addgitdiffs {
   my $temp_area = `mktemp -d /tmp/ccollab.XXXX`;
   chomp $temp_area;
     system("$GIT_EXE clone -b $ENV{branch_is} $ENV{BAK_MASTER_REPO} $temp_area");
+    my @merge_issues = `cd $temp_area; $ENV{RTL_PROJ_BIN}/git ls-files -u`;
+    chomp(@merge_issues);
+
+    if ($#merge_issues >= 0)
+    {
+      print "There are merge conflicts in @merge_issues\n";
+      die "Please fix merge conflicts before submitting a code reviewn\n";
+    }
+
     my $cmd = "cd $temp_area;$GIT_EXE pull $ENV{MODEL_ROOT}; $CCOLLAB_EXE addgitdiffs $reviewId HEAD^ HEAD";
     system($cmd);
 
@@ -998,8 +1007,6 @@ if ($reviewId) {
     my $cmd;
     print("you already have a code review open - $reviewId - but it is not updated to the last commit - updating\n");
     my @files_changed = addgitdiffs($reviewId);
-  $cmd = "$CCOLLAB_EXE admin review finish last";
-  system($cmd);
     update_git_message($reviewId);
     my %cfg = getReviewers(@files_changed);
   my %used;
@@ -1023,6 +1030,8 @@ if ($reviewId) {
   #  my $cmd = "$CCOLLAB_EXE addgitdiffs $reviewId $from...$to";
  #   print("$cmd\n");
    # system($cmd);
+  $cmd = "$CCOLLAB_EXE admin review finish last";
+  system($cmd);
     print("Code review $reviewId updated\nLink: https://fm-codecollab.intel.com/ui#review:id=$reviewId\n");
     exit(0);    
     }
@@ -1062,8 +1071,6 @@ if ($reviewId) {
     print "$_ => @{$cfg{files}{$_}}\n";
   
   }
-  $cmd = "$CCOLLAB_EXE admin review finish last";
-  system($cmd);
   #reviers and observers
   my %used;
   my $user = $ENV{USER};
@@ -1089,6 +1096,8 @@ if ($reviewId) {
   #  system($cmd);
   #$cmd = "$CCOLLAB_EXE admin review finish last";
   #system($cmd);
+  $cmd = "$CCOLLAB_EXE admin review finish last";
+  system($cmd);
   $cmd = "$CCOLLAB_EXE admin review participant remove last $ME";
   system($cmd);
   update_git_message($id);

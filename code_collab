@@ -796,7 +796,7 @@ sub addgitdiffs {
   my $reviewId = shift;
   my $temp_area = `mktemp -d /tmp/ccollab.XXXX`;
   chomp $temp_area;
-    system("$GIT_EXE clone -b $ENV{branch_is} $ENV{BAK_MASTER_REPO} $temp_area");
+    system("$GIT_EXE clone -b $ENV{branch_is} $ENV{BAK_MASTER_REPO} $temp_area >& /dev/null ");
     my @merge_issues = `cd $temp_area; $ENV{RTL_PROJ_BIN}/git ls-files -u`;
     chomp(@merge_issues);
 
@@ -806,7 +806,7 @@ sub addgitdiffs {
       die "Please fix merge conflicts before submitting a code reviewn\n";
     }
 
-    my $cmd = "cd $temp_area;$GIT_EXE pull $ENV{MODEL_ROOT}; $CCOLLAB_EXE addgitdiffs $reviewId HEAD^ HEAD";
+    my $cmd = "cd $temp_area;$GIT_EXE pull $ENV{MODEL_ROOT} >& /dev/null ; $CCOLLAB_EXE addgitdiffs $reviewId HEAD^ HEAD  >& /dev/null ";
     system($cmd);
 
     my @files_cahanged;
@@ -1018,19 +1018,21 @@ if ($reviewId) {
   for my $rev (@{$cfg{reviewers}}) {
     next if ($used{$rev});
     $used{$rev}=1;
-   $cmd = "$CCOLLAB_EXE admin review participant assign last $rev reviewer";
+   $cmd = "$CCOLLAB_EXE admin review participant assign last $rev reviewer  >& /dev/null";
     system($cmd);
   }
   for my $rev (@{$cfg{observers}}) {
     next if ($used{$rev});
     $used{$rev}=1;
-    $cmd = "$CCOLLAB_EXE admin review participant assign last $rev observer";
+    $cmd = "$CCOLLAB_EXE admin review participant assign last $rev observer >& /dev/null ";
     system($cmd);
   }
+  $cmd = "$CCOLLAB_EXE admin review participant remove $reviewId $ME >& /dev/null ";
+  system($cmd);
   #  my $cmd = "$CCOLLAB_EXE addgitdiffs $reviewId $from...$to";
  #   print("$cmd\n");
    # system($cmd);
-  $cmd = "$CCOLLAB_EXE admin review finish last";
+  $cmd = "$CCOLLAB_EXE admin review finish last  >& /dev/null";
   system($cmd);
     print("Code review $reviewId updated\nLink: https://fm-codecollab.intel.com/ui#review:id=$reviewId\n");
     exit(0);    
@@ -1067,38 +1069,39 @@ if ($reviewId) {
   if ($main::opt_reviewers) {
     @{$cfg{reviewers}} = split(",",$main::opt_reviewers);
   };
-  for (keys %{$cfg{files}}) {
-    print "$_ => @{$cfg{files}{$_}}\n";
-  
-  }
+ # for (keys %{$cfg{files}}) {
+ #   print "$_ => @{$cfg{files}{$_}}\n";
+ # 
+ # }
   #reviers and observers
   my %used;
   my $user = $ENV{USER};
   if ($ENV{GK_USER}) {
     $user = $ENV{GK_USER};
   }
-   $cmd = "$CCOLLAB_EXE admin review participant assign last $user author";
+   $cmd = "$CCOLLAB_EXE admin review participant assign $id $user author >& /dev/null";
     system($cmd);
     $used{$user} = 1;
   for my $rev (@{$cfg{reviewers}}) {
     next if ($used{$rev});
     $used{$rev}=1;
-   $cmd = "$CCOLLAB_EXE admin review participant assign last $rev reviewer";
+   $cmd = "$CCOLLAB_EXE admin review participant assign $id $rev reviewer >& /dev/null";
     system($cmd);
   }
   for my $rev (@{$cfg{observers}}) {
     next if ($used{$rev});
     $used{$rev}=1;
-    $cmd = "$CCOLLAB_EXE admin review participant assign last $rev observer";
+    $cmd = "$CCOLLAB_EXE admin review participant assign $id $rev observer >& /dev/null";
     system($cmd);
   }
   # $cmd = "$CCOLLAB_EXE admin review participant assign last cradmin reviewer";
   #  system($cmd);
   #$cmd = "$CCOLLAB_EXE admin review finish last";
   #system($cmd);
-  $cmd = "$CCOLLAB_EXE admin review finish last";
+  $cmd = "$CCOLLAB_EXE admin review finish $id ";
+  #print "$cmd\n";
   system($cmd);
-  $cmd = "$CCOLLAB_EXE admin review participant remove last $ME";
+  $cmd = "$CCOLLAB_EXE admin review participant remove $id $ME >& /dev/null ";
   system($cmd);
   update_git_message($id);
   print("code review $id created\nLink: https://fm-codecollab.intel.com/ui#review:id=$id\n");

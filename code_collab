@@ -1,30 +1,12 @@
 #!/usr/intel/bin/perl5.14.1 
+#
+#
+#TASKS
+# 	clean unneeded code
+# 	add option for title (--title "something here")
+# MAYBE LATER:
+# 	pretty print (shouldn't be hard but i hate it!)
 
-#############################################################################
-# Copyright (c) 2014 Intel Corporation, all rights reserved.
-#
-# THIS PROGRAM IS AN UNPUBLISHED WORK FULLY PROTECTED BY
-# COPYRIGHT LAWS AND IS CONSIDERED A TRADE SECRET BELONGING
-# TO THE INTEL CORPORATION.
-#############################################################################
-#
-# Created by: BALEME, PAUL L
-# Email     : paul.baleme@intel.com
-# Phone     : +1 916 356 0429
-#
-# Modified by: SHAH, PRATIK R
-# Email      : pratik.r.shah@intel.com
-# Phone      : +1 916 377 8842
-#
-#############################################################################
-#
-#  $Date: 2000/04/03 21:31:41 $
-#  $Revision: 1.2 $
-#  $RCSfile$
-#
-#############################################################################
-#
-#
 
 use FindBin qw($Bin);
 use List::MoreUtils qw(uniq);
@@ -37,10 +19,6 @@ our $GroupName;
 our $TemplateName;
 
 our $SLA = 24; # in hours
-
-
-
-
 
 if ($ENV{GK_MODELROOT} ) {
   $ENV{MODEL_ROOT} ||= $ENV{GK_MODELROOT};
@@ -141,22 +119,23 @@ my (%AllUIDs, %AllReviewers, %UnknownEmailAddresses);
 #               : GLOBAL::$opt_help = Set by Getopt::Long, contains -h
 #               :                     command line value (1 or not defined)
 #############################################################################
+
 sub DoCommandlineOptions
 {
   $main::opt_update = 0;
-    $main::opt_help   = 0;
+  $main::opt_help   = 0;
   $main::opt_create = 0;
   $main::opt_close = 0;
     #$main::opt_globalconfig    = 1;
-    $main::opt_fsck       = 1;
+
    # $main::opt_indicators = 0;
 
     use Getopt::Long qw(:config auto_abbrev);
     &GetOptions(
-                "help|h",       "debug|d",    "git_hook",      "xmlfile=s",     "totsha=s", "turninsha=s", "fsck!",
+                "help|h",       "debug|d",    "git_hook",      "xmlfile=s",     "totsha=s", "turninsha=s",
                 "ownersFile=s", "printReviewers=s", "revert",        "indicators", "status=s",
                 "deletexml!",   "reassign=i",       "globalconfig!", "review=s", "update", "close",
-                "user=s",       "info=s",           "nongating",     "title=s" , "check_files=s" , "create", "reviewers=s",
+                "user=s",       "info=s",           "nongating",     "title=s"  , "check_files=s" , "create", "reviewers=s",
                ) || die $main::Usage;
 
     if ($main::opt_help)
@@ -164,6 +143,8 @@ sub DoCommandlineOptions
         print $main::Usage;
         exit;
     }
+
+   
 
     die $main::Usage if ($#ARGV >= 0);
   #  die $main::Usage unless defined($main::opt_xmlfile);
@@ -187,8 +168,7 @@ sub get_shas {
     my $turninSha = `$GIT_EXE rev-parse --verify HEAD`;
     chomp($turninSha);
   return ($totSha,$turninSha);
-}
-
+} # END sub get_shas 
 
 
 sub update_git_message
@@ -200,288 +180,17 @@ sub update_git_message
 	my ($git_new_message) = "Code review#$code_review_number $git_message";
 	my ($git_amend_cmd)  = "cd $ENV{MODEL_ROOT} ; $GIT_EXE commit --amend -m \"$git_new_message\"";
 	my ($gitreturn) = `$git_amend_cmd`;
-}
-
-
-sub CheckRepoIntegrity
-{
-    system("/bin/df -h .");
-    return unless ($main::opt_fsck);
-    print "-->>Checking git repo integrity...";
-    my ($fsckReturnCode) = system("$GIT_EXE fsck --no-progress");
-    die("git fsck failed!!!\n") if ($fsckReturnCode != 0);
-    print "\n-->>git repo integrity check passed.\n";
-} ## end sub CheckRepoIntegrity
+} ## end sub update_git_message
 
 my (@CDIS);
 
-sub PushCDIS
-{
-    my ($person) = @_;
-
-    push(@CDIS, $person);
-}
-
-sub ClearCDIS
-{
-    @CDIS = ();
-}
-
 my (%NameCache);
-
-sub Name2UID
-{
-    my ($name) = @_;
-
-    chomp($name);
-    $name = lc($name);
-
-    if (defined($NameCache{$name}))
-    {
-        return ($NameCache{$name});
-    }
-
-    # TODO: Hack fix for Chaitra's name being jacked.
-    if ($name eq 'V ChaitraX')
-    {
-        $name = 'V, ChaitraX';
-    }
-
-    my ($last, $first);
-    my ($lastFirst);
-    if ($name =~ /^(.*),(.*)$/)
-    {
-        $first     = $2;
-        $last      = $1;
-        $lastFirst = uc($name);
-    } ## end if ($name =~ /^(.*),(.*)$/...)
-    elsif ($name =~ /^(.*)\.([^\.]+)/)
-    {
-        $first     = $1;
-        $last      = $2;
-        $lastFirst = uc("$2, $1");
-    } ## end elsif ($name =~ /^(.*)\.([^\.]+)/...)
-    elsif ($name =~ /^(.+)\s+(\S+)$/)
-    {
-        $first     = $1;
-        $last      = $2;
-        $lastFirst = uc("$2, $1");
-    } ## end elsif ($name =~ /^(.+)\s+(\S+)$/...)
-    else
-    {
-
-        # Assume it is already a uid
-        return ($name);
-    } ## end else [ if ($name =~ /^(.*),(.*)$/...)]
-    $name = "$first.$last";
-    $name      =~ s/^\s+//;
-    $name      =~ s/\s+$//;
-    $name      =~ s/\s/\./g;
-    $lastFirst =~ s/X\b//;     # Remove the X at the end of contractor names.
-    $lastFirst =~ s/\./ /g;
-
-    if (defined($NameCache{$name}))
-    {
-        return ($NameCache{$name});
-    }
-
-    my ($cdis) = new Intel::CDISLookup;
-    my ($result) =
-      $cdis->query(mode     => L_LNAME, key => $last,
-                   callback => \&PushCDIS);
-    unless ($result)
-    {
-        warn "Could not find user: $name";
-        return ();
-    }
-
-    foreach my $person (@CDIS)
-    {
-        my ($bookName) = $person->{BookName};
-        if (   ($bookName =~ /^$lastFirst\s*\S*$/)
-            || ($bookName =~ /^$last,.*\($first\)$/i))
-
-        {
-            $NameCache{$name} = $person->{IDSID};
-            &ClearCDIS();
-            return ($person->{IDSID});
-        } ## end if (($bookName =~ /^$lastFirst\s*\S*$/...))
-    } ## end foreach my $person (@CDIS)
-    &ClearCDIS();
-    warn "Could not find user: $name" unless ($result);
-    return ();
-} ## end sub Name2UID
-
-sub ConvertArray
-{
-    my ($value) = @_;
-
-    my (@tmp) = split(/[,;]/, $value);
-    return (\@tmp);
-} ## end sub ConvertArray
 
 my ($Settings);
 
 # Default value for sip groupid
 $Settings->{config}->{SIPGroupID} = ['b29fb0be5ea0ffb29e491cc3026a4217'];
 
-sub LoadOwners
-{
-    my ($ownerFile, $fileOwners, $tags) = @_;
-
-    my ($currentTag);
-    open(OWNERS, $ownerFile) || die "$ownerFile $!";
-    while (<OWNERS>)
-    {
-        chomp;
-        s/^\s*#.*//;    # Remove comments (lines starting with '#')
-        next unless (!/^\s*$/);    # Skip blank lines
-        s/\s+$//;
-
-        if (/\[\s*tag\s*:\s*(\S+)\s*\]/i)
-        {
-            $currentTag = $1;
-        }
-        elsif (/^(.*):(.*)=\s*(.*)$/)
-        {
-            my ($key1)  = $1;
-            my ($key2)  = $2;
-            my ($value) = $3;
-
-            $value = &ConvertArray($value);
-
-            $Settings->{$key1}->{$key2} = $value;
-            if ($key1 eq 'alias')
-            {
-                $NameCache{$key2} = $value->[0];
-            }
-        } ## end elsif (/^(.*):(.*)=\s*(.*)$/...)
-        elsif (/^(.*)\s*=\s*(.*)$/)
-        {
-            my ($key)   = $1;
-            my ($value) = $2;
-            $value = &ConvertArray($value);
-            foreach my $reviewer (@$value)
-            {
-                my ($alias) = &ResolveAlias($reviewer, "");
-                my (@tmp) = @$alias;
-                foreach (@tmp)
-                {
-                    s/^observer://;
-                    $AllUIDs{$_}      = 1;
-                    $AllReviewers{$_} = 1;
-                } ## end foreach (@tmp)
-            } ## end foreach my $reviewer (@$value...)
-            $fileOwners->{$key} = $value;
-            $tags->{$key}       = $currentTag;
-        } ## end elsif (/^(.*)\s*=\s*(.*)$/...)
-    } ## end while (<OWNERS>)
-    my ($defaultUser) = &GetSetting('default', 'user');
-    if (defined($defaultUser))
-    {
-        $AllReviewers{$defaultUser} = 1;
-    }
-    my ($defaultByFile) = $Settings->{defaultReviewer};
-    foreach (keys(%$defaultByFile))
-    {
-        $AllReviewers{ $defaultByFile->{$_}->[0] } = 1;
-    }
-    close(OWNERS);
-} ## end sub LoadOwners
-
-sub create_reviewer_file_table
-{
-    my ($files, $fileOwners, $reviewers) = @_;
-
-    my (%seen, %reviewer_file);
-    foreach my $fileRegex (keys(%$fileOwners))
-    {
-        my @owners = "";
-        my (@owners1) = @{ $fileOwners->{$fileRegex} };
-
-        # print "\n\n$fileRegex, OWNERS/ OWNERS ALIAS: @owners1\n" if ($main::opt_debug);
-        foreach my $i (@owners1)
-        {
-            my ($alias, $not_picked) = &ResolveAlias($i, "");
-            push(@owners, @$alias);
-            push(@owners, @$not_picked) if (defined $not_picked);
-
-        } ## end foreach my $i (@owners1)
-
-        # print "\n\n$fileRegex RESOLVED ALIAS OWNERS LIST: @owners\n" if ($main::opt_debug);
-        foreach my $file (@$files)
-        {
-            chomp($file);
-            my $f = $file;
-
-            $f =~ s/.*\///;
-            if ($file =~ /^$fileRegex$/)
-            {
-
-                #print "FILE:$file\n";
-                foreach my $r (@$reviewers)
-                {
-
-                    #	print "REVIEWER: $r\n";
-                    next if ($r eq 'nobody');
-                    my @findOwner = grep(/$r/, @owners);
-
-                    #	print "FOUND? @findOwner\n";
-                    if ($#findOwner >= 0)
-                    {
-                        if (!defined($reviewer_file{$r}))
-                        {
-                            $reviewer_file{$r} = $f;
-
-                            #print "$r -> $reviewer_file{$r}\n";
-                        } ## end if (!defined($reviewer_file...))
-                        else
-                        {
-                            $reviewer_file{$r} .= ", $f" if ($reviewer_file{$r} !~ /$f/);
-
-                            #print "$r -> $reviewer_file{$r}\n";
-                        } ## end else [ if (!defined($reviewer_file...))]
-                    } ## end if ($#findOwner >= 0)
-                } ## end foreach my $r (@$reviewers)
-            } ## end if ($file =~ /^$fileRegex$/...)
-        } ## end foreach my $file (@$files)
-    } ## end foreach my $fileRegex (keys...)
-    return (\%reviewer_file);
-} ## end sub create_reviewer_file_table
-
-
-sub GetAuthor
-{
-    my ($commitSha) = @_;
-
-    my ($authorUid);
-    my ($authorEmail) = `$GIT_EXE log $commitSha^! --pretty=%ae`;
-    chomp($authorEmail);
-
-    if ($authorEmail eq 'you@examp')
-    {
-        $authorUid = &Name2UID(`$GIT_EXE log $commitSha^! --pretty=%an`);
-    }
-    elsif ($authorEmail =~ /^(.*\.[^\.]+)@.*$/)
-    {
-        $authorUid = &Name2UID($1);
-    }
-    elsif ($authorEmail =~ /^([^\.]+)@/)
-    {
-        $authorUid = $1;
-    }
-
-    if (!defined($authorUid))
-    {
-        my ($authorName) = `$GIT_EXE log $commitSha^! --pretty=%an`;
-        chomp($authorName);
-
-        $authorUid = &Name2UID($authorName);
-    } ## end if (!defined($authorUid...))
-
-    ($authorUid) = &ResolveAlias($authorUid)->[0];
-    return (lc($authorUid), $authorEmail);
-} ## end sub GetAuthor
 
 # Assumes code collaborator review id is in the git log in the fommat:
 #
@@ -499,63 +208,6 @@ sub GetReviewID
     }
     return (undef);
 } ## end sub GetReviewID
-
-sub isMerge
-{
-    my ($sha) = @_;
-
-    if (`$GIT_EXE log --merges $sha^!` =~ /\S/)
-    {
-        return (1);
-    }
-    return (0);
-} ## end sub isMerge
-
-sub PrintVars
-{
-    my ($vars) = @_;
-
-    foreach my $key (keys(%$vars))
-    {
-        print "$key => ";
-        if (ref($vars->{$key}) eq 'ARRAY')
-        {
-            print "[", join(", ", @{ $vars->{$key} }), "]";
-        }
-        else
-        {
-            print $vars->{$key};
-        }
-        print "\n";
-    } ## end foreach my $key (keys(%$vars...))
-} ## end sub PrintVars
-
-
-
-
-# Removes special characters from any of the variable values
-sub Sterilize
-{
-    my ($vars) = @_;
-
-    foreach my $key (keys(%$vars))
-    {
-        next if ($key eq 'reviewers');
-        next if ($key eq 'files');
-        next if ($key eq 'title');
-
-        #next if ($key eq 'overview');
-        if ($key ne 'overview')
-        {
-            $vars->{$key} =~ s#[^,\n\s\w=/\[\]\(\)]##g;
-        }
-        else
-        {
-            $vars->{$key} =~ s#[^,\n\s\w=/\[\]\(\)-\>:]##g;
-        }
-    } ## end foreach my $key (keys(%$vars...))
-} ## end sub Sterilize
-
 
 sub CCollabLogin
 {
@@ -582,83 +234,6 @@ sub CCollabLogin
     }
 } ## end sub CCollabLogin
 
-sub WGet
-{
-    my ($url) = @_;
-
-    my ($cmd);
-    $cmd = "$CCOLLAB_EXE admin wget '$url'";
-    print "$cmd\n" if ($main::opt_debug);
-    my (@data) = `$cmd`;
-    foreach (0 .. $#data)
-    {
-        chomp($data[$_]);
-        $data[$_] =~ s/\r//;
-    }
-    return (@data);
-} ## end sub WGet
-
-sub GetValidUsers
-{
-    my ($validUsers, $groupID) = @_;
-
-    #print "-->> Valid Users\n" if ($main::opt_debug);
-    my ($url);
-    $url .= "go?reportTitle=Enabled+Users";
-    $url .= "&loginVis=y&enabledFilter=Y";
-    $url .= "&groupFilter=" . $groupID;
-    $url .= "&data-format=csv";
-    $url .= "&idVis=n";
-    $url .= "&lastloginVis=&";
-    ## $url .= "&groupDepth=0";
-    $url .= "&groupDepth=all";
-    $url .= "&page=ReportUserList&component=ErrorsAndMessages";
-    $url .= "&sort1=col%3Dlogin%7C%7C%7Corder%3Dasc";
-    $url .= "&formSubmittedreportConfig=1&sort0=col%3Dname%7C%7C%7Corder%3Dasc";
-    $url .= "&adminVis=n&ErrorsAndMessages_fingerPrint=861101";
-    $url .= "&nameVis=y&phoneVis=n&emailVis=n";
-
-    foreach my $line (&WGet($url))
-    {
-        next if ($line =~ /\bLogin,/);
-        my ($uid, $name) = split(/,/, $line);
-        $uid = lc($uid);
-        $validUsers->{$uid} = 1;
-    } ## end foreach my $line (&WGet($url...))
-        #print join("\n", sort(keys(%$validUsers))), "\n" if ($main::opt_debug);
-} ## end sub GetValidUsers
-
-sub isValidTag
-{
-    my ($tag) = @_;
-
-    return 1 if ($tag eq 'verif');
-    return 1 if ($tag eq 'ucode');
-    return 1 if ($tag eq 'rtl');
-    return 1 if ($tag eq 'fw');
-    return 0;
-} ## end sub isValidTag
-
-
-sub GetWW
-{
-    my ($date) = @_;
-
-    if ($date =~ /(\d+)-(\d+)-(\d+)/)
-    {
-        my ($year, $month, $day) = ($1, $2 - 1, $3);
-        my ($intelYear, $intelWW) = Intel::WorkWeek::intelww(0, 0, 0, $day, $month, $year);
-        $intelYear -= 100;    # Actual year is intelYear -1900.  Just want last
-                              #  two significant digits.
-        return (sprintf("%02d%02d", $intelYear, $intelWW));
-    } ## end if ($date =~ /(\d+)-(\d+)-(\d+)/...)
-    else
-    {
-        warn "!!! Could not extract WW from date: $date";
-    }
-} ## end sub GetWW
-
-
 sub GetReviewData
 {
     my ($reviewID) = @_;
@@ -674,19 +249,6 @@ sub GetReviewData
     return ($xmltree->{review});
 } ## end sub GetReviewData
 
-sub GetAuthorFromExistingReview
-{
-    my ($xmltree) = @_;
-
-    my ($participants) = $xmltree->{participants}->{participant};
-    return (undef) if (!defined($participants));
-    foreach my $participant (keys(%$participants))
-    {
-        my ($data) = $participants->{$participant};
-        return ($data->{login}) if ($data->{role} eq 'Author');
-    }
-    return (undef);
-} ## end sub GetAuthorFromExistingReview
 
 
 sub getReviewers {
@@ -751,7 +313,7 @@ sub getReviewers {
   
   }
   return %res;
-}
+}## END sub getReviewers 
 
 #returns:
 #my review id (0 if none exist)
@@ -784,12 +346,7 @@ sub getReviewID {
   }
   return (0,0);
 
-}
-
-
-sub createCodeReview {
-
-}
+} ## END sub getReviewID 
 
 
 sub addgitdiffs {
@@ -814,7 +371,7 @@ sub addgitdiffs {
     @files_cahanged = `$cmd`;
     chomp @files_cahanged;
     return @files_cahanged;
-}
+} ## END sub addgitdiffs 
 
 sub checkReview {
   my $id = shift;
@@ -896,8 +453,7 @@ sub checkReview {
     }
   }
 
-  
-}
+}## END sub checkReview 
 
 
 
@@ -918,9 +474,7 @@ my $url='go?reportTitle=Reviews+Currently+In+Progress&data-format=csv&reviewAuth
       checkReview($id);
       }
     }
-
-
-}
+} ## END sub closeReviews 
 
 #############################################################################
 # Main
@@ -938,6 +492,7 @@ if ($main::opt_close) {
   closeReviews();
   exit(0);
 }
+
 #TODO: maybe improve this
 if ($main::opt_status) {
   print "getting status of $main::opt_status\n";
@@ -979,133 +534,154 @@ sleep(500);
   exit(2);
 }
 
+
+
+my $userInput_title="";
+  
 #remove authors from rev/obs and rev from obs
 if ($main::opt_create) {
-#do i need to create a review?
-my  ($from,$to) =  get_shas();
-#print "$from  $to\n";
 
-my ($reviewId,$is_updated) = getReviewID($from,$to); 
-if ($main::opt_update) {
-  $is_updated = 0;
-}
-
-if ($reviewId) {
-  my $x = GetReviewData($reviewId);
-  my $status = $x->{general}->{phase}->{content};
-  
-#already have review - is it updated?
-  if ($is_updated) {
-    #it is updated
-    print("you already have a code review open - $reviewId\n");
-    print("Link: https://fm-codecollab.intel.com/ui#review:id=$reviewId\n");
-    print("nothing to do, exiting\n");
-    exit(0);
-  }
-  elsif ($status !~ /Completed/) {
-    #need to update
-    my $cmd;
-    print("you already have a code review open - $reviewId - but it is not updated to the last commit - updating\n");
-    my @files_changed = addgitdiffs($reviewId);
-    update_git_message($reviewId);
-    my %cfg = getReviewers(@files_changed);
-  my %used;
-  my $user = $ENV{USER};
-  if ($ENV{GK_USER}) {
-    $user = $ENV{GK_USER};
-  }
-  $used{$user} = 1;
-  for my $rev (@{$cfg{reviewers}}) {
-    next if ($used{$rev});
-    $used{$rev}=1;
-   $cmd = "$CCOLLAB_EXE admin review participant assign last $rev reviewer  >& /dev/null";
-    system($cmd);
-  }
-  for my $rev (@{$cfg{observers}}) {
-    next if ($used{$rev});
-    $used{$rev}=1;
-    $cmd = "$CCOLLAB_EXE admin review participant assign last $rev observer >& /dev/null ";
-    system($cmd);
-  }
-  $cmd = "$CCOLLAB_EXE admin review participant remove $reviewId $ME >& /dev/null ";
-  system($cmd);
-  #  my $cmd = "$CCOLLAB_EXE addgitdiffs $reviewId $from...$to";
- #   print("$cmd\n");
-   # system($cmd);
-  $cmd = "$CCOLLAB_EXE admin review finish last  >& /dev/null";
-  system($cmd);
-    print("Code review $reviewId updated\nLink: https://fm-codecollab.intel.com/ui#review:id=$reviewId\n");
-    exit(0);    
-    }
+  #title opt check :
+  if ($main::opt_title){
     
-}
-#need to create code review
-  #
-  #
-#my @files_changed = `$GIT_EXE diff --name-only $from $to`;
-#chomp(@files_changed);
-  my $title = `$GIT_EXE log --format=%B HEAD^..HEAD | head -1`;
-  chomp $title;
-  $title.= " [$ENV{STEPPING} $ENV{CLUSTER_NAME} $ENV{branch_is}]";
-  $ENV{DISPLAY} = 0;
-  my $cmd = "$CCOLLAB_EXE admin review create --title '$title' --template '$TemplateName' --group $GroupID --custom-field 'Overview=$ENV{MODEL_ROOT}'"; 
- # print("$cmd\n");
-  my @output = `$cmd`;
-  my $id = 0;
-  for (@output) {
-    if ($_ =~ /Successfully created review/) {
-      $id = $_;
-      $id =~ s/.* //;
-      $id =~ s/\.//;
-    }
+    $userInput_title = $main::opt_title;
+    print "user input title = $main::opt_title\n";
+
   }
-  if (!$id) {
-    print("failed to create code review\n");
-    exit(1);
+
+	#do i need to create a review?
+	my  ($from,$to) =  get_shas();
+	#print "$from  $to\n";
+
+	my ($reviewId,$is_updated) = getReviewID($from,$to); 
+	if ($main::opt_update) {
+		$is_updated = 0;
+	}
+
+	if ($reviewId) {
+		my $x = GetReviewData($reviewId);
+		my $status = $x->{general}->{phase}->{content};
+
+		#already have review - is it updated?
+		if ($is_updated) {
+			#it is updated
+			print("you already have a code review open - $reviewId\n");
+			print("Link: https://fm-codecollab.intel.com/ui#review:id=$reviewId\n");
+			print("nothing to do, exiting\n");
+			exit(0);
+		}
+		elsif ($status !~ /Completed/) {
+			#need to update
+			my $cmd;
+			print("you already have a code review open - $reviewId - but it is not updated to the last commit - updating\n");
+			my @files_changed = addgitdiffs($reviewId);
+			update_git_message($reviewId);
+			my %cfg = getReviewers(@files_changed);
+			my %used;
+			my $user = $ENV{USER};
+			if ($ENV{GK_USER}) {
+				$user = $ENV{GK_USER};
+			}
+			$used{$user} = 1;
+			for my $rev (@{$cfg{reviewers}}) {
+				next if ($used{$rev});
+				$used{$rev}=1;
+				$cmd = "$CCOLLAB_EXE admin review participant assign last $rev reviewer  >& /dev/null";
+				system($cmd);
+			}
+			for my $rev (@{$cfg{observers}}) {
+				next if ($used{$rev});
+				$used{$rev}=1;
+				$cmd = "$CCOLLAB_EXE admin review participant assign last $rev observer >& /dev/null ";
+				system($cmd);
+			}
+			$cmd = "$CCOLLAB_EXE admin review participant remove $reviewId $ME >& /dev/null ";
+			system($cmd);
+			#  my $cmd = "$CCOLLAB_EXE addgitdiffs $reviewId $from...$to";
+			#   print("$cmd\n");
+			# system($cmd);
+			$cmd = "$CCOLLAB_EXE admin review finish last  >& /dev/null";
+			system($cmd);
+			print("Code review $reviewId updated\nLink: https://fm-codecollab.intel.com/ui#review:id=$reviewId\n");
+			exit(0);    
+		}
+
+	}
+	#need to create code review
+	#
+	#
+	#my @files_changed = `$GIT_EXE diff --name-only $from $to`;
+	#chomp(@files_changed);
+  my $title;
+
+  if($userInput_title eq ""){
+
+	  $title = `$GIT_EXE log --format=%B HEAD^..HEAD | head -1`;
+	  chomp $title;
   }
-  chomp $id;
-  my @files_changed = addgitdiffs($id);
-  my %cfg = getReviewers(@files_changed);
-  if ($main::opt_reviewers) {
-    @{$cfg{reviewers}} = split(",",$main::opt_reviewers);
-  };
- # for (keys %{$cfg{files}}) {
- #   print "$_ => @{$cfg{files}{$_}}\n";
- # 
- # }
-  #reviers and observers
-  my %used;
-  my $user = $ENV{USER};
-  if ($ENV{GK_USER}) {
-    $user = $ENV{GK_USER};
+  else {
+    $title= $userInput_title;
   }
-   $cmd = "$CCOLLAB_EXE admin review participant assign $id $user author >& /dev/null";
-    system($cmd);
-    $used{$user} = 1;
-  for my $rev (@{$cfg{reviewers}}) {
-    next if ($used{$rev});
-    $used{$rev}=1;
-   $cmd = "$CCOLLAB_EXE admin review participant assign $id $rev reviewer >& /dev/null";
-    system($cmd);
-  }
-  for my $rev (@{$cfg{observers}}) {
-    next if ($used{$rev});
-    $used{$rev}=1;
-    $cmd = "$CCOLLAB_EXE admin review participant assign $id $rev observer >& /dev/null";
-    system($cmd);
-  }
-  # $cmd = "$CCOLLAB_EXE admin review participant assign last cradmin reviewer";
-  #  system($cmd);
-  #$cmd = "$CCOLLAB_EXE admin review finish last";
-  #system($cmd);
-  $cmd = "$CCOLLAB_EXE admin review finish $id ";
-  #print "$cmd\n";
-  system($cmd);
-  $cmd = "$CCOLLAB_EXE admin review participant remove $id $ME >& /dev/null ";
-  system($cmd);
-  update_git_message($id);
-  print("code review $id created\nLink: https://fm-codecollab.intel.com/ui#review:id=$id\n");
-  exit(0);
+	$title.= " [$ENV{STEPPING} $ENV{CLUSTER_NAME} $ENV{branch_is}]";
+  
+	$ENV{DISPLAY} = 0;
+	my $cmd = "$CCOLLAB_EXE admin review create --title '$title' --template '$TemplateName' --group $GroupID --custom-field 'Overview=$ENV{MODEL_ROOT}'"; 
+	my @output = `$cmd`;
+	my $id = 0;
+	for (@output) {
+		if ($_ =~ /Successfully created review/) {
+			$id = $_;
+			$id =~ s/.* //;
+			$id =~ s/\.//;
+		}
+	}
+	if (!$id) {
+		print("failed to create code review\n");
+		exit(1);
+	}
+	chomp $id;
+	my @files_changed = addgitdiffs($id);
+	my %cfg = getReviewers(@files_changed);
+	if ($main::opt_reviewers) {
+		@{$cfg{reviewers}} = split(",",$main::opt_reviewers);
+	};
+	# for (keys %{$cfg{files}}) {
+	#   print "$_ => @{$cfg{files}{$_}}\n";
+	# 
+	# }
+	#reviers and observers
+	my %used;
+	my $user = $ENV{USER};
+	if ($ENV{GK_USER}) {
+		$user = $ENV{GK_USER};
+	}
+	$cmd = "$CCOLLAB_EXE admin review participant assign $id $user author >& /dev/null";
+	system($cmd);
+	$used{$user} = 1;
+	for my $rev (@{$cfg{reviewers}}) {
+		next if ($used{$rev});
+		$used{$rev}=1;
+		$cmd = "$CCOLLAB_EXE admin review participant assign $id $rev reviewer >& /dev/null";
+		system($cmd);
+	}
+	for my $rev (@{$cfg{observers}}) {
+		next if ($used{$rev});
+		$used{$rev}=1;
+		$cmd = "$CCOLLAB_EXE admin review participant assign $id $rev observer >& /dev/null";
+		system($cmd);
+	}
+	# $cmd = "$CCOLLAB_EXE admin review participant assign last cradmin reviewer";
+	#  system($cmd);
+	#$cmd = "$CCOLLAB_EXE admin review finish last";
+	#system($cmd);
+	$cmd = "$CCOLLAB_EXE admin review finish $id ";
+	#print "$cmd\n";
+	system($cmd);
+	$cmd = "$CCOLLAB_EXE admin review participant remove $id $ME >& /dev/null ";
+	system($cmd);
+	update_git_message($id);
+	print("code review $id created\nLink: https://fm-codecollab.intel.com/ui#review:id=$id\n");
+	exit(0);
 
 }
 

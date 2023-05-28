@@ -322,7 +322,7 @@ sub getReviewID {
   my $from = shift;
   my $to = shift;
   my $reviewId;
-  my @commit_msg = `$GIT_EXE  log --format=%B $from..$to`;
+  my @commit_msg = `$GIT_EXE  log --ancestry-path --format=%B $from..$to`;
   for (@commit_msg) {
     if ($_ =~ /Code review#(\d+)/) {
       $reviewId ||= $1;

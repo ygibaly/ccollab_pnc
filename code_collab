@@ -29,6 +29,8 @@ if ($ENV{GK_MODELROOT} ) {
   $ENV{STEPPING} = $ENV{GK_STEPPING};
   $ENV{CLUSTER_NAME} = $ENV{GK_CLUSTER};
 }
+my $is_gating = 0;
+my @gating_files;
 #do "$Bin/code_collab.cfg";
 my $cfg_file =  "$Bin/$ENV{STEPPING}.$ENV{CLUSTER_NAME}.cfg";
 if ($ENV{CCOLLAB_CFG_FILE}) {
@@ -126,6 +128,7 @@ sub DoCommandlineOptions
   $main::opt_help   = 0;
   $main::opt_create = 0;
   $main::opt_close = 0;
+  $main::opt_pre_turnin =0;
     #$main::opt_globalconfig    = 1;
 
    # $main::opt_indicators = 0;
@@ -133,7 +136,7 @@ sub DoCommandlineOptions
     use Getopt::Long qw(:config auto_abbrev);
     &GetOptions(
                 "help|h",       "debug|d",    "git_hook",      "xmlfile=s",     "totsha=s", "turninsha=s",
-                "ownersFile=s", "printReviewers=s", "revert",        "indicators", "status=s",
+                "ownersFile=s", "printReviewers=s", "revert",        "indicators", "status=s", "pre_turnin",
                 "deletexml!",   "reassign=i",       "globalconfig!", "review=s", "update", "close",
                 "user=s",       "info=s",           "nongating",     "title=s"  , "check_files=s" , "create", "reviewers=s",
                ) || die $main::Usage;
@@ -283,12 +286,16 @@ sub getReviewers {
     my @cp = @src_files;
     $match = 0;
     for my $config (@configurations) {
-      my $src = pop(@cp);
+      my $src = shift (@cp);
     for my $cfg (@$config) {
       next if ($match);
       for my $regex (@{$cfg->{files}}) {
       if ($file =~ /^$regex/) {
         $match = 1;
+        if ($src =~ /pnc-a0.integ_env.cfg/ || $src =~ /pnc-a0.exe.cfg/) {
+            $is_gating = 1;
+            push (@gating_files, $file);
+        }
         push(@{$res{reviewers}}, @{$cfg->{reviewers}});
         @{$res{files}{$file}} = @{$cfg->{reviewers}};
         push(@{$res{observers}}, @{$cfg->{observers}});
@@ -483,6 +490,48 @@ my $url='go?reportTitle=Reviews+Currently+In+Progress&data-format=csv&reviewAuth
 #print "% $0 ", join(" ", @ARGV), "\n\n";
 &DoCommandlineOptions;
 
+if ($main::opt_pre_turnin) {
+  print "running code review check\n";
+  my @files_changed = `cat $ENV{GK_TURNIN_FILES_CHANGED}`;
+  chomp @files_changed;
+  getReviewers(@files_changed);
+  if (! $is_gating) {
+    print "no changes are gating - sending TI\n";
+    exit(0);
+  }
+  my @lines = `cat $ENV{GK_CSET_LOG}`;
+  shift @lines; #remove first line;
+  for (@lines) {
+    if ($_ =~ /Code review#/) {
+      print "code review exists - sending TI\n";
+      exit (0);
+    }
+    if ($_ =~ /^commit/) {
+      my $msg = "You have changed the following gating files:\n";
+      $msg.= join("\n",@gating_files);
+      $msg.="\nbut you dont have an updated code review.\n\n";
+      $msg.="Before sending TI, please create a code review by using this command\n";
+      $msg.="\$RTL_PROJ_TOOLS/ccollab_pnc/latest/code_collab --create --title \"<review title>\"\n";
+
+    print $msg;
+      open MAIL, "| /usr/bin/mailx -s 'Your TI requires a code review to submit'  $ENV{GK_USER}";
+    print MAIL $msg;
+    close MAIL;
+      #send mail
+      exit(1);
+    }
+  }
+
+
+  exit(0);
+}
+
+if ($main::opt_check_files) {
+  my @files_changed = split(",",$main::opt_check_files);
+
+  my %cfg = getReviewers(@files_changed);
+  exit(0);
+}
 
 &CCollabLogin();
 
@@ -512,14 +561,6 @@ print("$x->{general}->{phase}->{content}\n");
   }
   exit(0)
 
-}
-
-
-if ($main::opt_check_files) {
-  my @files_changed = split(",",$main::opt_check_files);
-
-  my %cfg = getReviewers(@files_changed);
-  exit(0);
 }
 
 

@@ -507,23 +507,22 @@ if ($main::opt_pre_turnin) {
       exit (0);
     }
     if ($_ =~ /^commit/) {
-      my $msg = "You have changed the following gating files:\n";
-      $msg.= join("\n",@gating_files);
-      $msg.="\nbut you dont have an updated code review.\n\n";
-      $msg.="Before sending TI, please create a code review by using this command\n";
-      $msg.="\$RTL_PROJ_TOOLS/ccollab_pnc/latest/code_collab --create --title \"<review title>\"\n";
-
-    print $msg;
-      open MAIL, "| /usr/bin/mailx -s 'Your TI requires a code review to submit'  $ENV{GK_USER}";
-    print MAIL $msg;
-    close MAIL;
-      #send mail
-      exit(1);
+      last;
     }
   }
 
+  my $msg = "You have changed the following gating files:\n";
+  $msg.= join("\n",@gating_files);
+  $msg.="\nbut you dont have an updated code review.\n\n";
+  $msg.="Before sending TI, please create a code review by using this command\n";
+  $msg.="\$RTL_PROJ_TOOLS/ccollab_pnc/latest/code_collab --create --title \"<review title>\"\n";
 
-  exit(0);
+  print $msg;
+  open MAIL, "| /usr/bin/mailx -s 'Your TI requires a code review to submit'  $ENV{GK_USER}";
+  print MAIL $msg;
+  close MAIL;
+  exit(1);
+
 }
 
 if ($main::opt_check_files) {

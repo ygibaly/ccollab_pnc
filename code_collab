@@ -491,6 +491,10 @@ my $url='go?reportTitle=Reviews+Currently+In+Progress&data-format=csv&reviewAuth
 &DoCommandlineOptions;
 
 if ($main::opt_pre_turnin) {
+  if (`grep $ENV{GK_USER} /nfs/site/disks/c2dg_gk_tools/pnc/code_review_waive`) {
+    print "user $ENV{GK_USER} has a waiver\n";
+    exit 0;
+  }
   print "running code review check\n";
   my @files_changed = `cat $ENV{GK_TURNIN_FILES_CHANGED}`;
   chomp @files_changed;

@@ -339,7 +339,7 @@ sub getReviewID {
     }
   }
 
-  my $last_msg = `$GIT_EXE log --format=%B HEAD^..HEAD`;
+  my $last_msg = `$GIT_EXE log --format=%B HEAD^..HEAD | head -1`;
   if ($reviewId) {
     #already have review - is it updated?
     if ($last_msg =~/Code review#/) {

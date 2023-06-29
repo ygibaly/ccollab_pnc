@@ -125,6 +125,7 @@ my (%AllUIDs, %AllReviewers, %UnknownEmailAddresses);
 sub DoCommandlineOptions
 {
   $main::opt_update = 0;
+  $main::opt_force = 0;
   $main::opt_help   = 0;
   $main::opt_create = 0;
   $main::opt_close = 0;
@@ -137,7 +138,7 @@ sub DoCommandlineOptions
     &GetOptions(
                 "help|h",       "debug|d",    "git_hook",      "xmlfile=s",     "totsha=s", "turninsha=s",
                 "ownersFile=s", "printReviewers=s", "revert",        "indicators", "status=s", "pre_turnin",
-                "deletexml!",   "reassign=i",       "globalconfig!", "review=s", "update", "close",
+                "deletexml!",   "reassign=i",       "globalconfig!", "review=s", "update", "close","force",
                 "user=s",       "info=s",           "nongating",     "title=s"  , "check_files=s" , "create", "reviewers=s",
                ) || die $main::Usage;
 
@@ -364,6 +365,9 @@ sub addgitdiffs {
   my $temp_area = `mktemp -d /tmp/ccollab.XXXX`;
   chomp $temp_area;
     system("$GIT_EXE clone -b $ENV{branch_is} $ENV{BAK_MASTER_REPO} $temp_area >& /dev/null ");
+
+    my $cmd = "cd $temp_area;$GIT_EXE pull $ENV{MODEL_ROOT} >& /dev/null";
+    system($cmd);
     my @merge_issues = `cd $temp_area; $ENV{RTL_PROJ_BIN}/git ls-files -u`;
     chomp(@merge_issues);
 
@@ -373,11 +377,11 @@ sub addgitdiffs {
       die "Please fix merge conflicts before submitting a code reviewn\n";
     }
 
-    my $cmd = "cd $temp_area;$GIT_EXE pull $ENV{MODEL_ROOT} >& /dev/null ; $CCOLLAB_EXE addgitdiffs $reviewId HEAD^ HEAD  >& /dev/null ";
+    $cmd = "cd $temp_area ; $CCOLLAB_EXE addgitdiffs $reviewId HEAD  >& /dev/null ";
     system($cmd);
 
     my @files_cahanged;
-    $cmd = "cd $temp_area;$GIT_EXE diff --name-only HEAD^ HEAD";
+    $cmd = "cd $temp_area;$GIT_EXE diff --name-only HEAD";
     @files_cahanged = `$cmd`;
     chomp @files_cahanged;
     return @files_cahanged;
@@ -599,11 +603,14 @@ if ($main::opt_create) {
 	#do i need to create a review?
 	my  ($from,$to) =  get_shas();
 	#print "$from  $to\n";
-
-	my ($reviewId,$is_updated) = getReviewID($from,$to); 
-	if ($main::opt_update) {
-		$is_updated = 0;
-	}
+    my $reviewId = 0;
+    my $is_updated  = 0;
+    unless ($main::opt_force) {
+    	($reviewId,$is_updated) = getReviewID($from,$to); 
+	    if ($main::opt_update) {
+		    $is_updated = 0;
+	    }
+    }
 
 	if ($reviewId) {
 		my $x = GetReviewData($reviewId);

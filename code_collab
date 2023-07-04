@@ -377,11 +377,11 @@ sub addgitdiffs {
       die "Please fix merge conflicts before submitting a code reviewn\n";
     }
 
-    $cmd = "cd $temp_area ; $CCOLLAB_EXE addgitdiffs $reviewId HEAD  >& /dev/null ";
+    $cmd = "cd $temp_area ; $CCOLLAB_EXE addgitdiffs $reviewId HEAD~  >& /dev/null ";
     system($cmd);
 
     my @files_cahanged;
-    $cmd = "cd $temp_area;$GIT_EXE diff --name-only HEAD";
+    $cmd = "cd $temp_area;$GIT_EXE diff --name-only HEAD~";
     @files_cahanged = `$cmd`;
     chomp @files_cahanged;
     return @files_cahanged;

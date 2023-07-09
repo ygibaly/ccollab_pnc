@@ -262,6 +262,7 @@ sub getReviewers {
   $res{reviewers} = ();
   $res{observers} = ();
   $res{complete} = 0;
+  $res{files_needed} = ();
 
   my $match;
   my @remaining;
@@ -317,6 +318,9 @@ sub getReviewers {
     unless ($match) {
       push(@remaining,$file);
     }
+    if($match) {
+      push(@{$res{files_needed}},$file);
+      }
 
   
   }
@@ -359,9 +363,24 @@ sub getReviewID {
 
 } ## END sub getReviewID 
 
+sub get_files_changed {
+
+  $ENV{PWD} = $ENV{MODEL_ROOT};
+  my @files_changed = `$GIT_EXE lfchanges $ENV{BAK_MASTER_REPO}`;
+  chomp @files_changed;
+  return @files_changed;
+
+}
 
 sub addgitdiffs {
   my $reviewId = shift;
+#get files changed
+  my @files_changed = get_files_changed();
+  my %cfg = getReviewers(@files_changed);
+
+
+
+
   my $temp_area = `mktemp -d /tmp/ccollab.XXXX`;
   chomp $temp_area;
     system("$GIT_EXE clone -b $ENV{branch_is} $ENV{BAK_MASTER_REPO} $temp_area >& /dev/null ");
@@ -376,15 +395,15 @@ sub addgitdiffs {
       print "There are merge conflicts in @merge_issues\n";
       die "Please fix merge conflicts before submitting a code reviewn\n";
     }
-
-    $cmd = "cd $temp_area ; $CCOLLAB_EXE addgitdiffs $reviewId HEAD~  >& /dev/null ";
+  my $files_changed_str = join(" ",@{$cfg{files_needed}});
+    $cmd = "cd $temp_area ; $CCOLLAB_EXE addgitdiffs $reviewId HEAD~ -- $files_changed_str  >& /dev/null ";
     system($cmd);
 
-    my @files_cahanged;
-    $cmd = "cd $temp_area;$GIT_EXE diff --name-only HEAD~";
-    @files_cahanged = `$cmd`;
-    chomp @files_cahanged;
-    return @files_cahanged;
+#    my @files_cahanged;
+#    $cmd = "cd $temp_area;$GIT_EXE diff --name-only HEAD~";
+#    @files_cahanged = `$cmd`;
+#    chomp @files_cahanged;
+    return @files_changed;
 } ## END sub addgitdiffs 
 
 sub checkReview {
@@ -678,6 +697,12 @@ if ($main::opt_create) {
   }
 	$title.= " [$ENV{STEPPING} $ENV{CLUSTER_NAME} $ENV{branch_is}]";
   
+    my @files_changed = get_files_changed();
+    my %cfg = getReviewers(@files_changed);
+    if (! $cfg{files_needed}) {
+      print "non of your changed files require code review - exiting\n";
+      exit(0);
+    }
 	$ENV{DISPLAY} = 0;
 	my $cmd = "$CCOLLAB_EXE admin review create --title '$title' --template '$TemplateName' --group $GroupID --custom-field 'Overview=$ENV{MODEL_ROOT}'"; 
 	my @output = `$cmd`;

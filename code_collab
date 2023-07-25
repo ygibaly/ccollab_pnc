@@ -294,10 +294,8 @@ sub getReviewers {
       for my $regex (@{$cfg->{files}}) {
       if ($file =~ /^$regex/) {
         $match = 1;
-        if ($src =~ /pnc-a0.integ_env.cfg/ || $src =~ /pnc-a0.exe.cfg/) {
             $is_gating = 1;
             push (@gating_files, $file);
-        }
         push(@{$res{reviewers}}, @{$cfg->{reviewers}});
         @{$res{files}{$file}} = @{$cfg->{reviewers}};
         push(@{$res{observers}}, @{$cfg->{observers}});

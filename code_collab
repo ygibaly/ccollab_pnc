@@ -84,6 +84,7 @@ use Date::Parse;
 my ($CCOLLAB_EXE)   = "$ENV{RTL_PROJ_TOOLS}/code_collab_client/latest/ccollab";
 my ($INDICATOR_DIR) = "/nfs/site/proj/cnl/cnl.gk.workarea.1/CODE_COLLAB/indicators_$ENV{CLUSTER_NAME}/csv";
 my ($GIT_EXE)       = "$ENV{RTL_PROJ_BIN}/git"; #"/usr/intel/pkgs/git/1.8.5.4/bin/git";
+($GIT_EXE)       ="/usr/intel/pkgs/git/1.8.5.4/bin/git";
 
 #my($GLOBAL_CONFIGFILE) = dirname($0)."/global_codecollab_config.list";
 my ($ME) = 'cradmin';    #                = (getpwuid($>))[0];
@@ -345,7 +346,7 @@ sub getReviewID {
   my $last_msg = `$GIT_EXE log --format=%B HEAD^..HEAD | head -1`;
   if ($reviewId) {
     #already have review - is it updated?
-    if ($last_msg =~/Code review#/) {
+    if ($last_msg =~/Code review#/ && $last_msg !~ /Merge branch/) {
     #it is updated
       return ($reviewId,1);
     }

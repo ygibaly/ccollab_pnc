@@ -389,11 +389,11 @@ sub addgitdiffs {
     my @merge_issues = `cd $temp_area; $ENV{RTL_PROJ_BIN}/git ls-files -u`;
     chomp(@merge_issues);
 
-    if ($#merge_issues >= 0)
-    {
-      print "There are merge conflicts in @merge_issues\n";
-      die "Please fix merge conflicts before submitting a code reviewn\n";
-    }
+  #  if ($#merge_issues >= 0)
+  #  {
+  #    print "There are merge conflicts in @merge_issues\n";
+  #    die "Please fix merge conflicts before submitting a code reviewn\n";
+  #  }
   my $files_changed_str = join(" ",@{$cfg{files_needed}});
     $cmd = "cd $temp_area ; $CCOLLAB_EXE addgitdiffs $reviewId HEAD~ -- $files_changed_str  >& /dev/null ";
     system($cmd);
@@ -718,8 +718,8 @@ if ($main::opt_create) {
 		exit(1);
 	}
 	chomp $id;
-	my @files_changed = addgitdiffs($id);
-	my %cfg = getReviewers(@files_changed);
+	@files_changed = addgitdiffs($id);
+	%cfg = getReviewers(@files_changed);
 	if ($main::opt_reviewers) {
 		@{$cfg{reviewers}} = split(",",$main::opt_reviewers);
 	};

@@ -346,7 +346,7 @@ sub getReviewID {
   my $last_msg = `$GIT_EXE log --format=%B HEAD^..HEAD | head -1`;
   if ($reviewId) {
     #already have review - is it updated?
-    if ($last_msg =~/Code review#/ && $last_msg !~ /Merge branch/) {
+    if ($last_msg =~/Code review#/ && $last_msg !~ /Merge /) {
     #it is updated
       return ($reviewId,1);
     }
@@ -365,7 +365,7 @@ sub getReviewID {
 sub get_files_changed {
 
   $ENV{PWD} = $ENV{MODEL_ROOT};
-  my @files_changed = `$GIT_EXE lfchanges $ENV{BAK_MASTER_REPO}`;
+  my @files_changed = `$GIT_EXE lfchanges $ENV{BAK_LATEST_TURNIN}`;
   chomp @files_changed;
   return @files_changed;
 

@@ -30,6 +30,7 @@ if ($ENV{GK_MODELROOT} ) {
   $ENV{CLUSTER_NAME} = $ENV{GK_CLUSTER};
 }
 my $is_gating = 0;
+my $is_holding = 0;
 my @gating_files;
 #do "$Bin/code_collab.cfg";
 my $cfg_file =  "$Bin/$ENV{STEPPING}.$ENV{CLUSTER_NAME}.cfg";
@@ -131,6 +132,7 @@ sub DoCommandlineOptions
   $main::opt_create = 0;
   $main::opt_close = 0;
   $main::opt_pre_turnin =0;
+  $main::opt_code_review_check =0;
     #$main::opt_globalconfig    = 1;
 
    # $main::opt_indicators = 0;
@@ -139,7 +141,7 @@ sub DoCommandlineOptions
     &GetOptions(
                 "help|h",       "debug|d",    "git_hook",      "xmlfile=s",     "totsha=s", "turninsha=s",
                 "ownersFile=s", "printReviewers=s", "revert",        "indicators", "status=s", "pre_turnin",
-                "deletexml!",   "reassign=i",       "globalconfig!", "review=s", "update", "close","force",
+                "deletexml!",   "reassign=i",       "globalconfig!", "review=s", "update", "close","force", "code_review_check",
                 "user=s",       "info=s",           "nongating",     "title=s"  , "check_files=s" , "create", "reviewers=s",
                ) || die $main::Usage;
 
@@ -296,6 +298,9 @@ sub getReviewers {
       if ($file =~ /^$regex/) {
         $match = 1;
             $is_gating = 1;
+	    if ($src =~ /pnc-a0.integ_env/) {
+		$is_holding = 1;
+	    }
             push (@gating_files, $file);
         push(@{$res{reviewers}}, @{$cfg->{reviewers}});
         @{$res{files}{$file}} = @{$cfg->{reviewers}};
@@ -382,7 +387,7 @@ sub addgitdiffs {
 
   my $temp_area = `mktemp -d /tmp/ccollab.XXXX`;
   chomp $temp_area;
-    system("$GIT_EXE clone -b $ENV{branch_is} $ENV{BAK_MASTER_REPO} $temp_area >& /dev/null ");
+    system("$GIT_EXE clone -b $ENV{branch_is} $ENV{BAK_LATEST_TURNIN} $temp_area >& /dev/null ");
 
     my $cmd = "cd $temp_area;$GIT_EXE pull $ENV{MODEL_ROOT} >& /dev/null";
     system($cmd);
@@ -515,14 +520,65 @@ my $url='go?reportTitle=Reviews+Currently+In+Progress&data-format=csv&reviewAuth
 #print "% $0 ", join(" ", @ARGV), "\n\n";
 &DoCommandlineOptions;
 
+
+if ($main::opt_code_review_check) {
+	if (`grep $ENV{GK_USER} /nfs/site/disks/c2dg_gk_tools/pnc/code_review_waive` || `grep ALL /nfs/site/disks/c2dg_gk_tools/pnc/code_review_waive`) {
+		print "user $ENV{GK_USER} has a waiver\n";
+		exit 2;
+	}
+	print "running code review check\n";
+	my @files_changed = `cat $ENV{GK_TURNIN_FILES_CHANGED}`;
+	chomp @files_changed;
+	getReviewers(@files_changed);
+	unless ($is_holding) {
+		exit(2);
+	}
+	#get the review id
+	my @lines = `cat $ENV{GK_CSET_LOG}`;
+	shift @lines; #remove first line;
+	my $reviewID;
+	for (@lines) {
+		if ($_ =~ /Code review#(\d+)/) {
+			$reviewID = $1;
+		}
+		if ($_ =~ /^commit/) {
+			last;
+		}
+	}
+	if (! $reviewID) {
+		print "failed to fined code review ID, failing\n";
+		exit(1);
+	}
+	
+  	my $data = GetReviewData($reviewID);
+
+	my $status =  $data->{general}->{phase}->{content};
+	if ($status eq "Completed") {
+		exit(2);
+	}
+	if ($status eq "Rework") {
+		exit(1);
+	}
+	my $creationDate = $data->{general}->{creationDate};
+	my $creationTime = str2time($creationDate);
+	my $now = `date +%s`;
+	chomp $now;
+	my $passed_hours = ($now  - $creationTime )/60/60;
+	if ($passed_hours >= 24) {
+		exit(2);
+	}
+	exit(0);
+
+}
+
 if ($main::opt_pre_turnin) {
-  if (`grep $ENV{GK_USER} /nfs/site/disks/c2dg_gk_tools/pnc/code_review_waive` || `grep ALL /nfs/site/disks/c2dg_gk_tools/pnc/code_review_waive`) {
-    print "user $ENV{GK_USER} has a waiver\n";
-    exit 0;
-  }
-  print "running code review check\n";
-  my @files_changed = `cat $ENV{GK_TURNIN_FILES_CHANGED}`;
-  chomp @files_changed;
+	if (`grep $ENV{GK_USER} /nfs/site/disks/c2dg_gk_tools/pnc/code_review_waive` || `grep ALL /nfs/site/disks/c2dg_gk_tools/pnc/code_review_waive`) {
+		print "user $ENV{GK_USER} has a waiver\n";
+		exit 0;
+	}
+	print "running code review check\n";
+	my @files_changed = `cat $ENV{GK_TURNIN_FILES_CHANGED}`;
+	chomp @files_changed;
   getReviewers(@files_changed);
   if (! $is_gating) {
     print "no changes are gating - sending TI\n";

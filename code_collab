@@ -401,7 +401,7 @@ sub addgitdiffs {
   #    die "Please fix merge conflicts before submitting a code reviewn\n";
   #  }
   my $files_changed_str = join(" ",@{$cfg{files_needed}});
-    $cmd = "cd $temp_area ; $CCOLLAB_EXE addgitdiffs $reviewId HEAD~ -- $files_changed_str  >& /dev/null ";
+    $cmd = "cd $temp_area ; $CCOLLAB_EXE addgitdiffs $reviewId HEAD~   >& /dev/null ";
     system($cmd);
 
 #    my @files_cahanged;

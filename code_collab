@@ -1,7 +1,5 @@
 #!/usr/intel/bin/perl5.14.1 
 #
-#
-#
 #TASKS
 # 	clean unneeded code
 # 	add option for title (--title "something here")

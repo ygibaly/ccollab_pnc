@@ -165,7 +165,7 @@ sub DoCommandlineOptions
 
 sub get_shas {
  my $totSha;
- my $branch = `$GIT_EXE branch --show-current`;
+ my $branch = `$GIT_EXE rev-parse --abbrev-ref HEAD`;
         $totSha = `$GIT_EXE rev-parse origin/$branch `;
 
     #Change this to manually generate reviews after the turnin has been accepted.

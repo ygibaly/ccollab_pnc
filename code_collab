@@ -522,10 +522,12 @@ my $url='go?reportTitle=Reviews+Currently+In+Progress&data-format=csv&reviewAuth
 
 
 if ($main::opt_code_review_check) {
+  unless ($ENV{GK_BRANCH} =~ /ucode/) {
 	if (`grep $ENV{GK_USER} /nfs/site/disks/c2dg_gk_tools/pnc/code_review_waive` || `grep ALL /nfs/site/disks/c2dg_gk_tools/pnc/code_review_waive`) {
 		print "user $ENV{GK_USER} has a waiver\n";
 		exit 2;
 	}
+  }
 	print "running code review check\n";
 	my @files_changed = `cat $ENV{GK_TURNIN_FILES_CHANGED}`;
 	chomp @files_changed;
